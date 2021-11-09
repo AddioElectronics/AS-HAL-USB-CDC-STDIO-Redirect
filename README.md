@@ -24,7 +24,7 @@ Redirect STDIO to USB, and handles transfers to and from USB.
 ``` C
 
 #include <atmel_start.h>
-#include "addio/Embedded/IO/Atmel Start/cdc_stdio_redirect/usb_cdc_stdio.h"
+#include "addio/Embedded/IO/Atmel Start/usb_cdc_stdio/usb_cdc_stdio.h"
 
 uint8_t rx_buffer[USB_CDC_RX_BUF_SIZE+1];
 uint8_t tx_buffer[USB_CDC_TX_BUF_SIZE+1];
