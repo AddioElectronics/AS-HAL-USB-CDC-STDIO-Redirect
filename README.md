@@ -12,7 +12,7 @@ Redirect STDIO to USB, and handles transfers to and from USB.
   - Add the `Middleware/Utilities/STDIO Redirect` component.
   - Generate your project
 - Import the Addio folder and its contents to your project.
-- _(Optional)_ Edit the [config file](https://github.com/AddioElectronics/AS-HAL-USB-CDC-STDIO-Redirect/blob/master/Addio/Embedded/IO/Atmel%20Start/cdc_stdio_redirect/usb_cdc_stdio_config.h) to your liking.
+- _(Optional)_ Edit the [config file](https://github.com/AddioElectronics/AS-HAL-USB-CDC-STDIO-Redirect/blob/master/Addio/Embedded/IO/Atmel%20Start/usb_cdc_stdio/usb_cdc_stdio_config.h) to your liking.
 - In `atmel_start.c`, comment out `stdio_redirect_init();`
 - `#include "Addio/Embedded/IO/Atmel Start/cdc_stdio_redirect/usb_cdc_stdio.h"`
 - Call `cdc_stdio_init()` in your initialization routine.
