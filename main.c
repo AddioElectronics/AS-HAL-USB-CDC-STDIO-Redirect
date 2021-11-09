@@ -1,5 +1,5 @@
 #include <atmel_start.h>
-#include "addio/Embedded/IO/Atmel Start/cdc_stdio_redirect/usb_cdc_stdio.h"
+#include "addio/Embedded/IO/Atmel Start/usb_cdc_stdio/usb_cdc_stdio.h"
 
 //Add 1 character for string termination.
 uint8_t rx_buffer[USB_CDC_RX_BUF_SIZE+1];
