@@ -1,15 +1,19 @@
 # AS-HAL-USB-CDC-STDIO-Redirect
-C Library for use with Atmel Start's USB CDC driver(HAL). Redirects STDIO to USB.
+C Library for use with Atmel Start's USB CDC driver(HAL). 
+
+Redirect STDIO to USB, and handles transfers to and from USB.
 
 
 
 ## Usage
 
 - Create a project with Atmel Start.
-  - Add the `USB Device CDC ACM` middleware.
+  - Add the `Middleware/USB Stack/USB Device CDC ACM` component.
+  - Add the `Middleware/Utilities/STDIO Redirect` component.
   - Generate your project
 - Import the Addio folder and its contents to your project.
 - _(Optional)_ Edit the [config file](https://github.com/AddioElectronics/AS-HAL-USB-CDC-STDIO-Redirect/blob/master/Addio/Embedded/IO/Atmel%20Start/cdc_stdio_redirect/usb_cdc_stdio_config.h) to your liking.
+- In `atmel_start.c`, comment out `stdio_redirect_init();`
 - `#include "Addio/Embedded/IO/Atmel Start/cdc_stdio_redirect/usb_cdc_stdio.h"`
 - Call `cdc_stdio_init()` in your initialization routine.
 - Register your desired callbacks using `usb_cdc_stdio_register_callback`
