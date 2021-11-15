@@ -2,10 +2,10 @@
 
 #include <err_codes.h>
 #include <hal_io.h>
-#include <hal_atomic.h>
 
-#include "../../../../Universal/IO/buffer/ring_buffer.h"
 
+#include "../../../Time/timing/timing.h"
+#include "../../../../Universal/IO/buffers/ring_buffer.h"
 
 
 #pragma region Variables
@@ -15,13 +15,20 @@
 */
 struct io_descriptor USB_CDC_IO;
 
+union{
+struct{
+	uint8_t DTR : 1; //!< Data Terminal Ready
+	uint8_t RTS : 1; //!< Request To Send
+	};
+	uint8_t value;
+} rs232_control_state;
 
 /* 
 *	Buffers to receive and transfer data to and from the USB interface. 
-	One byte added for null termination character.
 */
-static			uint8_t cdc_tx_buffer[USB_CDC_TX_BUF_SIZE + 1];
-static volatile uint8_t cdc_rx_buffer[USB_CDC_RX_BUF_SIZE + 1];
+static			uint8_t cdc_tx_buffer[USB_CDC_TX_BUF_SIZE];
+
+static volatile uint8_t cdc_rx_buffer[USB_CDC_RX_BUF_SIZE];
 
 /*
 *	We must still use the standard rx_buffer, as the HAL USB handles populating the buffer.
@@ -30,7 +37,7 @@ static volatile uint8_t cdc_rx_buffer[USB_CDC_RX_BUF_SIZE + 1];
 static volatile uint8_t cdc_secondary_rx_buffer[CDC_SECONDARY_BUFFER_SIZE];
 static volatile ring_buffer_t rx_ring_buffer;
 #else
-
+static volatile uint8_t cdc_rx_buffer_pos = 0;
 #endif
 
 /*
@@ -42,7 +49,7 @@ volatile bool cdc_data_transfering;
 *	If true, the data in the TX buffer will not be sent.
 *	This allows the tx buffer to be filled with multiple write operations before sending.
 */
-bool tx_wait_to_fill;
+bool tx_hold_buffer;
 
 /*
 *	The size of the last chunk of data received.
@@ -55,7 +62,11 @@ volatile uint16_t cdc_rx_length;
 */
 volatile uint16_t cdc_tx_length;
 
-
+/*
+*	The time at which the last transfer was sent. (milliseconds)
+*	Used for limiting the amount of transfers to avoid data loss.
+*/
+unsigned long previous_write_timestamp;
 
 /*
 *	The internal structure holding the callbacks.
@@ -70,8 +81,16 @@ struct usb_cdc_callbacks callbacks;
 *	Function headers for static methods.
 */
 static bool cdc_usb_device_cb_state_c(usb_cdc_control_signal_t state);
-static int32_t cdc_stdio_write(struct io_descriptor* const io_descr, const uint8_t* buf, const uint16_t length);
-static cdc_stdio_read(struct io_descriptor* const io_descr, const uint8_t* buf, const uint16_t length);
+static int32_t cdc_stdio_write(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length);
+static int32_t cdc_stdio_read(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length);
+
+#if __has_include("../../addio_io.h")
+static int32_t cdc_stdio_peekMany(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length);
+static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr);
+static int32_t cdc_stdio_rxReady(struct io_descriptor *const io_descr);
+static int32_t  cdc_stdio_txReady(struct io_descriptor *const io_descr);
+#endif
+
 static bool cdc_cb_bulk_out(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count);
 static bool cdc_cb_bulk_in(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count);
 
@@ -99,6 +118,20 @@ void cdc_stdio_init()
 	//Set IO functions for STDIO redirection
 	USB_CDC_IO.read  = cdc_stdio_read;
 	USB_CDC_IO.write = cdc_stdio_write;
+	
+	//Use extended io, required for Addio/Embedded/IO/Serial/(print/reader)
+	#if __has_include("../../addio_io.h")
+	//USB_CDC_IO.get = cdc_stdio_get;
+	USB_CDC_IO.peek = cdc_stdio_peek;
+	USB_CDC_IO.peekMany = cdc_stdio_peekMany;
+	USB_CDC_IO.rxReady = cdc_stdio_rxReady;
+	USB_CDC_IO.txReady = cdc_stdio_txReady;
+	
+	USB_CDC_IO.flags.tx_wait_for_complete = false;
+	USB_CDC_IO.flags.tx_check_previous_for_completion = false;
+	USB_CDC_IO.flags.tx_min_interval = 0;// CDC_MIN_TX_INTERVAL; Handled internally
+	USB_CDC_IO.flags.print_quick = true;
+	#endif
 
 	//Initialize STDIO redirection.
 	stdio_io_init(&USB_CDC_IO);
@@ -156,67 +189,88 @@ int32_t usb_cdc_stdio_register_callback(enum usb_cdc_cb_type cb_type, FUNC_PTR f
 #pragma region Status Functions
 
 
-size_t __attribute__((__always_inline__)) cdc_tx_capacity()
+/*
+*	Gets a count of how many empty bytes are in the TX buffer.
+*	Unless "tx_wait_to_fill" is used, this will
+*
+*	/returns	How many empty bytes are in the TX buffer.
+*/
+size_t cdc_tx_capacity()
 {
-	return USB_CDC_RX_BUF_SIZE - cdc_tx_length;
+	if(tx_hold_buffer){
+		return USB_CDC_TX_BUF_SIZE - cdc_tx_length;
+	}else if(cdc_data_transfering){
+		return 0;
+	}else{
+		return USB_CDC_TX_BUF_SIZE;
+	}
+}
+
+/*
+*	Has the host connection signaled it is accepting data?
+*
+*	/returns	True	If the host has raised the DTR signal.
+*				False	If the host has stopped the DTR signal, or if no host is connected.
+*/
+bool __attribute__((__always_inline__)) cdc_data_terminal_ready()
+{
+	return rs232_control_state.DTR;
 }
 
 
-#if CDC_TX_RETRY == false
+/*
+*	Has the last write to the TX buffer been transmitted?
+*
+*	/returns	True	If the last write has been transferred or reached the timeout.
+*				False	If the last write is still waiting to be transferred.
+*/
+bool __attribute__((__always_inline__)) cdc_tx_ready()
+{
+	return !cdc_data_transfering && cdc_data_terminal_ready();
+}
 
 /*
 *	Amount of times cdc_tx_ready has been called, and returned false.
 */
-static uint16_t tx_attempts;
+static uint8_t tx_attempts;
 
 /*
 *	Has the last write to the TX buffer been transmitted?
 *	When tx_attempts reaches CDC_TX_MAX_RETRIES, it will either give up on the transfer,
 *	or resend the transfer.
-
+*
 *	/param		retry	Should the last transfer be resent if it reaches a timeout state?
 *
 *	/returns	True	If the last write has been transferred or reached the timeout.
 *				False	If the last write is still waiting to be transferred.
 */
-bool cdc_tx_ready(bool retry)
+bool cdc_tx_ready_timeout(bool retry)
 {
-	if(cdc_data_transfering)
-	{
-		if(++tx_attempts > CDC_TX_MAX_RETRIES)
-		{
-			if(retry)
-			{
-				cdc_retry_last_tx();				
-			}
-			cdc_data_transfering = false;
-			tx_attempts = 0;
-			return true;
-		}
-		return false;
-	}
-	
+	unsigned long start_time = millis();
 	tx_attempts = 0;
-	return true;
-}
-
-/*
-*	Has the last write to the TX buffer been transmitted?
-*	Will wait for transfer or to reach the timeout.
-*	When tx_attempts reaches CDC_TX_MAX_RETRIES, it will either give up on the transfer,
-*	or resend the transfer.
-*
-*	/param		retry	Should the last transfer be resent if it reaches a timeout state?
-*
-*	/returns			True when TX is ready, False if the connection is not accepting transfers.
-*/
-bool cdc_tx_ready_wait(bool retry)
-{
-	//if(!control_state.rs232.DTR) return false;
-	
-	//if(!cdc_connected()) return false;
-	while(!cdc_tx_ready(retry));
-	
+	while(!cdc_tx_ready())
+	{
+		if(has_time_elapsed_ms(CDC_TX_TIMEOUT, start_time))
+		{
+			#if CDC_TX_MAX_RETRIES >= 0
+			if(++tx_attempts > CDC_TX_MAX_RETRIES)
+			{
+				if(retry)
+				{
+					cdc_retry_last_tx();
+				}		
+				
+				//Mark false so if it fails again, it will not be reattempted.
+				cdc_data_transfering = false;					
+				return true;
+			}	
+			return false;		
+			#else
+			cdc_data_transfering = false;
+			return true;
+			#endif	
+		}
+	}
 	return true;
 }
 
@@ -228,22 +282,26 @@ bool cdc_tx_ready_wait(bool retry)
  */
 bool cdc_retry_last_tx()
 {
-	//Last transfer was sent successfully,
-	//will not resend.
+	//Last transfer was sent successfully.
 	if(!cdc_data_transfering) return false;
+
 	
 	cdcdf_acm_write(cdc_tx_buffer, cdc_tx_length);	
+	
+	#if CDC_MIN_TX_INTERVAL > 100
+	previous_write_timestamp = micros();
+	#endif
+	
 	return true;
 }
 
-#endif
 
 /*
  *	Have any new bytes been received?
  *
  *	/returns	If there are new bytes in the cdc_rx_buffer.
  */
-bool cdc_rx_ready(void)
+bool __attribute__((__always_inline__)) cdc_rx_ready(void)
 {
 	return cdc_rx_length > 0;
 }
@@ -253,7 +311,7 @@ bool cdc_rx_ready(void)
  *
  *	/returns	The number of new bytes in the cdc_rx_buffer
  */
-uint16_t cdc_get_rx_size()
+uint16_t __attribute__((__always_inline__)) cdc_get_rx_length()
 {
 	return cdc_rx_length;
 }
@@ -262,39 +320,43 @@ uint16_t cdc_get_rx_size()
 
 #pragma region Functions
 
-/*
-*	If enabled, any write will be stored in the TX buffer,
-*	and not transferred until either the buffer is full,
-*	or until cdc_disable_tx_wait_to_fill() is called.
-*
-*	*The standard windows driver tends to lose a lot of data when using this.
-*	*I added this feature to try and circumvent the loss of data when sending 
-*	large amounts of data, 1 byte at a time, but it only made the problem worse.
-*	The best way to stop the loss of data from MCU to PC is to use/increase CDC_TRANSFER_DELAY.
-*/
-void cdc_enable_tx_wait_to_fill()
+void __attribute__((__always_inline__)) cdc_get_io_descriptor(struct io_descriptor **io)
 {
-	tx_wait_to_fill = true;
+	return &USB_CDC_IO;
 }
 
 /*
-*	If disabled, a future write of any size will be sent via USB immediately.
-*	If the buffer currently has any thing inside, they will be sent.
+*	If enabled, any write will be stored in the TX buffer,
+*	and will not transfer until either the buffer is full,
+*	or until cdc_set_hold_buffer() is set to false.
+*
+*	/returns	bool	True if a transfer was sent when disabling. False if no transfer was sent, or if it was enabled.
 */
-void cdc_disable_tx_wait_to_fill()
+bool cdc_set_tx_hold_buffer(bool wait)
 {
-	tx_wait_to_fill = false;
+	tx_hold_buffer = wait;
 	
-	if(cdc_tx_length > 0)
+	if(tx_hold_buffer == false && cdc_tx_length > 0)
 	{
+		cdc_data_transfering = true;
 		cdcdf_acm_write(cdc_tx_buffer, cdc_tx_length);
+		
+		#if CDC_MIN_TX_INTERVAL > 100
+		previous_write_timestamp = micros();
+		#endif
+		
+		return true;
 	}
+	
+	return false;
 }
+
 
 
 #pragma endregion Functions
 
 #pragma region STDIO Functions
+
 
 
 /*
@@ -308,26 +370,20 @@ void cdc_disable_tx_wait_to_fill()
  */
  static int32_t cdc_stdio_write(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length)
 {	
-	#if CDC_TX_USE_CRITICAL == true
-	volatile hal_atomic_t flags;
-	#endif
-	
 	uint16_t txed = 0;
-	static CDC_TX_TIMEOUT_TYPE	timeoutCounter = 0;
-	static CDC_TX_RETRY_TYPE	retryCount = 0;
+	uint16_t succesful = 0;
+	static uint8_t	retryCount = 0;
 	
 	
-	#if CDC_TX_RETRY == false
+	#if CDC_WAIT_FOR_TX_COMPLETE == false
 	//If a previous write is not complete. Wait for it.
 	//If CDC_TX_RETRY is true, this function will not exit until a transfer has completed, and will always be true.
-	while(!cdc_tx_ready(true));
+	while(!cdc_tx_ready_timeout(true));
 	#endif
 	
-	
-	
+
 	while(txed < length)
 	{
-		
 		//Get pointer to unused section of buffer.
 		uint8_t* tx_buffer = cdc_tx_buffer + cdc_tx_length;
 		
@@ -341,106 +397,203 @@ void cdc_disable_tx_wait_to_fill()
 		RetryTransfer:
 		
 		//Send data in buffer.
-		if(!tx_wait_to_fill || (tx_wait_to_fill && cdc_tx_length == USB_CDC_TX_BUF_SIZE))
+		if(!tx_hold_buffer || (tx_hold_buffer && cdc_tx_length == USB_CDC_TX_BUF_SIZE))
 		{
+			#if CDC_MIN_TX_INTERVAL > 100 //Taking a guess that any CPU will take longer than 100 microseconds to arrive back here.
+			//Wait until the minimum amount of microseconds have elapsed since the last transfer.
+			while(micros() - previous_write_timestamp < CDC_MIN_TX_INTERVAL){}
+			#endif
+				
 			//Mark that a transfer is underway.
 			cdc_data_transfering = true;
 			
+			//Initiate the USB transfer
 			cdcdf_acm_write(cdc_tx_buffer, cdc_tx_length);
 			
-			//#if CDC_TX_RETRY_ == false
-			//cdc_tx_length = txed;
-			//#endif
+			#if CDC_MIN_TX_INTERVAL > 100
+			previous_write_timestamp = micros();
+			#endif
 		}
-
+		
+		
 		
 		//If there are still bytes waiting to be transferred, wait for the tx to complete.
 		//If CDC_TX_RETRY is true, it will always wait until the last transfer has finished, and try to resend failed transfers.
-		while(cdc_data_transfering && (txed < length || CDC_TX_RETRY))
+		unsigned long start_time = millis();
+		while(cdc_data_transfering && (txed < length || CDC_WAIT_FOR_TX_COMPLETE))
 		{
-			if(++timeoutCounter > CDC_TX_TIMEOUT)
+			
+			if(has_time_elapsed_ms(CDC_TX_TIMEOUT, start_time))
 			{
 				//Skip transmitting block.
-				if(!CDC_TX_RETRY || ++retryCount > CDC_TX_MAX_RETRIES)
+				if(CDC_TX_MAX_RETRIES == 0 || ++retryCount > CDC_TX_MAX_RETRIES)
 				{
 					cdc_data_transfering = false;
 					cdc_tx_length = 0;
+					tx_size = 0;
 					break;
 				}
 				
-				//Retry sending block.
-				timeoutCounter = 0;
 				goto RetryTransfer;
 			}
 		}
 		
-		// Trigger the cdc_data_sent callback to signify a block has been sent to USB
-		if(callbacks.blockTx != NULL)
-		(*callbacks.blockTx)(tx_size);
 		
+		//Transfer was a success
+		if(tx_size > 0)
+		{
+			succesful += tx_size;
+			
+			// Trigger the cdc_data_sent callback to signify a block has been sent to USB
+			if(callbacks.blockTx != NULL)
+			(*callbacks.blockTx)(tx_size);
+		}
 	}
 	
 	// Trigger the cdc_data_sent callback to signify all blocks have been sent to USB
 	if(callbacks.allBlocksTx != NULL)
-	(*callbacks.allBlocksTx)(length);
+	(*callbacks.allBlocksTx)(succesful);
 	
-	return (int32_t)length;
+	return (int32_t)succesful;
 }
+
 
 /*
  * \internal Read string from the buffer that was received from the USB interface.
  *
- * \param[in] descr		The pointer to an io descriptor
  * \param[in] buf		A buffer to read data to
  * \param[in] length	The size of a buffer, or how many bytes to read.
  *
  * \return The number of bytes read.
  */
-static cdc_stdio_read(struct io_descriptor* const io_descr, const uint8_t*  buf, const uint16_t length)
+static int32_t cdc_stdio_read(struct io_descriptor *const io_descr, const uint8_t*  buf, const uint16_t length)
 {
 	if(cdc_rx_length == 0) return 0;
 	
+	uint32_t rx_count;
 
 	#if CDC_MULTI_BUFFER == true
 	{
-		cdc_rx_length -= ring_buffer_read(&rx_ring_buffer, buf, length);
+		rx_count = ring_buffer_read(&rx_ring_buffer, buf, length);
+		cdc_rx_length -= rx_count;
 	}
 	#else
 	{
 
-		uint16_t rx_count = length;
+		rx_count = length;
 		
-		if(rx_count > USB_CDC_RX_BUF_SIZE)
-		rx_count = USB_CDC_RX_BUF_SIZE;
+		if(rx_count > USB_CDC_RX_BUF_SIZE - cdc_rx_buffer_pos)
+		rx_count = USB_CDC_RX_BUF_SIZE - cdc_rx_buffer_pos;
 		
-		memcpy(buf, &cdc_rx_buffer, rx_count);
+		memcpy(buf, cdc_rx_buffer + cdc_rx_buffer_pos, rx_count);
 		
-		cdc_rx_length = 0;
+		cdc_rx_length -= rx_count;
+		
+		cdc_rx_buffer_pos += rx_count;
+		
 	}
 	#endif
 		
 	
 	
-	return (int32_t)strlen(buf);
+	return (int32_t)rx_count;
 }
+
+#if __has_include("../../addio_io.h") // required for Addio/Embedded/IO/Serial/(print/reader)
+
+#if CDC_MULTI_BUFFER == true
+
+static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr)
+{
+	if(cdc_rx_length == 0) return -1;
+	
+	uint8_t data;
+	ring_buffer_peek(&rx_ring_buffer, &data);
+	return (int32_t)data;
+}
+
+static int32_t cdc_stdio_peekMany(struct io_descriptor *const io_descr, const uint8_t*  buf, const uint16_t length)
+{
+	if(cdc_rx_length == 0) return 0;
+	
+	return (int32_t)ring_buffer_peekMany(&rx_ring_buffer, buf, length);
+}
+
+#else
+
+static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr)
+{
+	if(cdc_rx_length == 0) return -1;
+	return (int32_t) cdc_rx_buffer[0];
+}
+
+static int32_t cdc_stdio_peekMany(struct io_descriptor *const io_descr, const uint8_t*  buf, const uint16_t length)
+{
+	if(cdc_rx_length == 0) return 0;
+	
+	uint16_t peek_count = length < cdc_rx_length ? length : cdc_rx_length;
+	
+	memcpy(buf, cdc_rx_buffer, peek_count);
+	return (int32_t)peek_count;
+}
+
+#endif //CDC_MULTI_BUFFER == true
+
+static int32_t __attribute__((__always_inline__)) cdc_stdio_rxReady(struct io_descriptor *const io_descr)
+{
+	return cdc_rx_length;
+}
+
+
+static int32_t __attribute__((__always_inline__)) cdc_stdio_txReady(struct io_descriptor *const io_descr)
+{
+	if(cdc_data_terminal_ready())
+	return cdc_tx_capacity();
+	
+	return false;
+}
+
+#endif //__has_include("../../addio_io.h")
 
 #pragma endregion STDIO Functions
 
 #pragma region USB Callback Functions
+
+static bool cdc_cb_dummy(const uint8_t ep, const enum usb_xfer_code rc, const uint16_t count)
+{
+	
+};
 
 /*
  * brief Callback invoked when Line State Change
  */
  static bool cdc_usb_device_cb_state_c(usb_cdc_control_signal_t state)
 {
-	
-	if (state.rs232.DTR) {
+
+	if (state.rs232.DTR) 
+	{
 		/* Callbacks must be registered after endpoint allocation */
 		cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_in);
 		cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_out);
 		
 		/* Start Rx */
 		cdcdf_acm_read((uint8_t*)cdc_rx_buffer, sizeof(cdc_rx_buffer));
+		
+		rs232_control_state.DTR = state.rs232.DTR;
+	}
+	
+	if(state.rs232.RTS)
+	{
+		rs232_control_state.RTS = state.rs232.RTS;
+	}
+	
+	//USB device unconnected, or flow control used.
+	if (state.rs232.DTR == 0 && state.rs232.DTR == 0) 
+	{
+		//cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_dummy);
+		//cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_dummy);
+		
+		rs232_control_state.value = 0;
 	}
 
 	/* No error. */
@@ -458,22 +611,13 @@ static cdc_stdio_read(struct io_descriptor* const io_descr, const uint8_t*  buf,
  */
 static bool cdc_cb_bulk_out(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count)
 {
-	#if CDC_TRANSFER_DELAY > 0
-	delay_ms(CDC_TRANSFER_DELAY);
-	#endif
-	
 	cdc_data_transfering = false;
-	
-	//#if CDC_TX_RETRY_ == false
 	cdc_tx_length = 0;
-	//#endif
 	
 	// Trigger the cdc_data_sent callback to signify a transfer has finished.
 	if(callbacks.txComplete != NULL)
 	(*callbacks.txComplete)(count);
 		
-	
-	
 	return false;
 }
 
@@ -510,6 +654,8 @@ static bool cdc_cb_bulk_in(const uint8_t ep, const enum usb_xfer_code rc, const 
 		
 		//Signify that data has been received.
 		cdc_rx_length = count;
+		
+		cdc_rx_buffer_pos = 0;
 		
 		if(cdc_rx_length > 0)
 		{

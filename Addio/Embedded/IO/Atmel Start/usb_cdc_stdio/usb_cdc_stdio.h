@@ -8,7 +8,12 @@
 
 #include <usbd_config.h>
 #include <usb_start.h>
+
+#if __has_include("../../stdio_redirect/addio_stdio_io.h")
+#include "../../stdio_redirect/addio_stdio_io.h"
+#else
 #include <stdio_io.h>
+#endif
 
 #include "usb_cdc_stdio_config.h"
 #include "usb_cdc_stdio_defs.h"
@@ -47,51 +52,39 @@ int32_t usb_cdc_stdio_register_callback(enum usb_cdc_cb_type cb_type, FUNC_PTR f
 
 #pragma region Status Functions
 
+/*
+*	If tx_wait_to_fill is enabled, this will return the amount of bytes still free in the buffer.
+*/
+size_t cdc_tx_capacity();
 
 /*
-*	Includes functions used to recover from a stuck transfer.
-*	Not needed when CDC_TX_RETRY == true, as transfers wait to be sent.
+*	Checks to see if the DTR signal is detected. If it is we can deem that we are connected.
 */
-//#if CDC_TX_RETRY_ == false
+bool cdc_data_terminal_ready();
 
 /*
 * Has the last transmit finished?
-* \param[in] retry When tx_attempts == CDC_TX_MAX_RETRIES, call cdc_retry_last_tx()
+*
+* \return True if there are no active transfer. False if the last transfer has not been sent.
 */
-bool cdc_tx_ready(bool retry);
+bool cdc_tx_ready();
 
-/*
-*	Has the last write to the TX buffer been transmitted?
-*	Will wait for transfer or to reach the timeout.
-*	When tx_attempts reaches CDC_TX_MAX_RETRIES, it will either give up on the transfer,
-*	or resend the transfer.
-* \param[in] retry	Should the last transfer be resent if it reaches a timeout state?
-*/
-bool cdc_tx_ready_wait(bool retry);
-
-/*
- * Attempt to resend the last write, if it was not transfered.
- *
- * \return	True if the last transfer was attempted to be resent.
-			False if there were no transfers in a stuck state.
- */
+bool cdc_tx_ready_timeout(bool retry);
 bool cdc_retry_last_tx();
-
-//#endif
 
 /*
  *	Have any new bytes been received?
  *
  * \return If there are new bytes in the cdc_rx_buffer.
  */
-bool cdc_rx_ready(void);
+bool cdc_rx_ready();
 
 /*
  *	Get the count of bytes received.
  *
  * \return The number of new bytes in the cdc_rx_buffer
  */
-uint16_t cdc_get_rx_size();
+uint16_t cdc_get_rx_length();
 
 
 #pragma endregion Status Functions
@@ -99,7 +92,9 @@ uint16_t cdc_get_rx_size();
 
 #pragma region Functions
 
-void cdc_enable_tx_wait_to_fill();
+void cdc_get_io_descriptor(struct io_descriptor **io);
+
+bool cdc_set_tx_hold_buffer(bool wait);
 
 void cdc_disable_tx_wait_to_fill();
 

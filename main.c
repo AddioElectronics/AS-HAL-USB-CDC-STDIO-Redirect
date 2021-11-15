@@ -1,11 +1,12 @@
 #include <atmel_start.h>
-#include "addio/Embedded/IO/Atmel Start/usb_cdc_stdio/usb_cdc_stdio.h"
+#include "Addio/Embedded/IO/Atmel Start/usb_cdc_stdio/usb_cdc_stdio.h"
+#include "Addio/Embedded/Time/System_Timer/system_timer.h"
 
 //Add 1 character for string termination.
-uint8_t rx_buffer[USB_CDC_RX_BUF_SIZE+1];
-uint8_t tx_buffer[USB_CDC_TX_BUF_SIZE+1];
+uint8_t rx_buffer[USB_CDC_RX_BUF_SIZE+1] = {0};
+uint8_t tx_buffer[USB_CDC_TX_BUF_SIZE+1] = {0};
 
-bool dataReceived;
+int dataReceived;
 
 void data_rx_callback(const uint16_t length);
 
@@ -13,6 +14,11 @@ int main(void)
 {
 	/* Initializes MCU, drivers and middleware */
 	atmel_start_init();
+	
+	//Initialize system timer for millis().
+	//If you are using the system timer, you will need to create your own millis() function.
+	//millis() prototype located in "Addio\Embedded\Time\Timing\timing.h"
+	system_timer_init();
 	
 	//Initialize and redirect.
 	cdc_stdio_init();
@@ -26,7 +32,11 @@ int main(void)
 		if(dataReceived)
 		{
 			printf("Data Received");
-			dataReceived = false;
+			
+			////Echo, if rx larger than 64 bytes, data loss will occur.
+			//stdio_io_write(&tx_buffer, dataReceived);
+			
+			dataReceived = 0;
 		}
 	}
 }
@@ -34,16 +44,13 @@ int main(void)
 
 void data_rx_callback(const uint16_t length)
 {
-	dataReceived = true;
-	
-	uint32_t rxCount = stdio_io_read(&rx_buffer, USB_CDC_RX_BUF_SIZE);
 
-	//Wait for USB to finish the last registered transfer.
-	while(!cdc_tx_ready(true));
+	dataReceived = stdio_io_read(&rx_buffer, USB_CDC_RX_BUF_SIZE);
 	
 	//Copy from RX buffer to TX buffer.
-	memcpy(tx_buffer, rx_buffer, rxCount);
+	memcpy(tx_buffer, rx_buffer, dataReceived);
 
-	//Echo
-	stdio_io_write(&tx_buffer, rxCount);
+
+	//Echo, if rx larger than 64 bytes, com port will freeze.
+	stdio_io_write(&tx_buffer, dataReceived);
 }
