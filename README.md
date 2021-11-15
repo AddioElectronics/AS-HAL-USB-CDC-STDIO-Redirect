@@ -1,7 +1,7 @@
 # AS-HAL-USB-CDC-STDIO-Redirect
 #### `V0.2.0`
 
-`Notice: In the echo example(main.c), if you receieve a USB transfer larger than 64 bytes, the com port will freeze as the host will not allow transfers to it until it has finished. By moving the write out of the callback freezing will not occur, but data loss will occur due to it not getting sent fast enough before it is overwritten. I am working on a fix.`
+`Notice: In the echo example(main.c), if you receieve a USB transfer larger than 64 bytes, the com port will freeze as the host will not allow transfers to it until it has finished. By moving the write out of the callback freezing will not occur, but data loss will occur due to it not getting sent fast enough before it is overwritten. This does not apply for non-echo situations. I am currently working on a fix.`
 
 C Library for use with Atmel Start's USB CDC ACM driver(HAL). 
 
@@ -25,7 +25,7 @@ Redirect STDIO to USB, and handles transfers to and from USB.
 - `printf`, `stdio_io_write` and `stdio_io_read`  away!
 
 `*1 : If the system timer is not available. You will need to write your own millis() function, which returns how many milliseconds have elapsed since program start.
-Create a source file and include "Addio\Embedded\Time\Timing\timing.h", which contains the millis() prototype.`
+Create a source file and include "Addio\Embedded\Time\Timing\timing.h", which contains the millis() prototype.
 
 *2 : If you are not using the Samd21, you will need to add includes to your IC in the `system_timer_atmelstart_cm0plus.c,` like the example below. In future versions more MCU's will be supported out of the box.
 
