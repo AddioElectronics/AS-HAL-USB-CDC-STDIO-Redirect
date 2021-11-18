@@ -63,9 +63,13 @@
 *
 *	*A transfer can be up to 64 bytes (Full speed), this does not mean 1 byte per n microseconds.
 *
+*	*Minimum value is 250, anything under will be ignored.
+*
 *	*If data loss is happening, increase the delay.
-*	*Unfortunately the data loss is driver related,
-*	*and is not able to be fixed from here.
+*	Unfortunately the data loss is driver related on the host side,
+*	and is not able to be fixed on the client side.
+*	Data loss related to echoing is an isolated issue, 
+	and increasing the interval will actually cause more data loss.
 */
 #define CDC_MIN_TX_INTERVAL 0
 

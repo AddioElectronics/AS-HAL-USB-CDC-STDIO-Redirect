@@ -14,7 +14,7 @@
 bool has_time_elapsed_ms(unsigned long ms, unsigned long start_ms)
 {
 	unsigned long time = millis();
-	if(time - start_ms >= ms)
+	if(time - start_ms >= ms && start_ms < time)
 	{
 		return true;
 	}
@@ -104,5 +104,6 @@ bool __attribute__((__always_inline__)) has_time_elapsed_min(unsigned long min, 
 //
 	//return false;
 //}
+
 
 #warning reminder to come re-comment this, its 5am and my english is becoming shit.

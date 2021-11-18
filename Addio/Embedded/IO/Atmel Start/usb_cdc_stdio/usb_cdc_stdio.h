@@ -62,28 +62,10 @@ size_t cdc_tx_capacity();
 */
 bool cdc_data_terminal_ready();
 
-/*
-* Has the last transmit finished?
-*
-* \return True if there are no active transfer. False if the last transfer has not been sent.
-*/
 bool cdc_tx_ready();
-
 bool cdc_tx_ready_timeout(bool retry);
 bool cdc_retry_last_tx();
 
-/*
- *	Have any new bytes been received?
- *
- * \return If there are new bytes in the cdc_rx_buffer.
- */
-bool cdc_rx_ready();
-
-/*
- *	Get the count of bytes received.
- *
- * \return The number of new bytes in the cdc_rx_buffer
- */
 uint16_t cdc_get_rx_length();
 
 
@@ -94,9 +76,14 @@ uint16_t cdc_get_rx_length();
 
 void cdc_get_io_descriptor(struct io_descriptor **io);
 
+void cdc_abort_tx();
+void cdc_abort_rx();
+
 bool cdc_set_tx_hold_buffer(bool wait);
 
 void cdc_disable_tx_wait_to_fill();
+
+
 
 
 #pragma endregion Functions

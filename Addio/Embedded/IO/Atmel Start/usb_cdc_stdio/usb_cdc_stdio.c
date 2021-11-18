@@ -2,6 +2,7 @@
 
 #include <err_codes.h>
 #include <hal_io.h>
+#include <hal_usb_device.h>
 
 
 #include "../../../Time/timing/timing.h"
@@ -31,7 +32,7 @@ static			uint8_t cdc_tx_buffer[USB_CDC_TX_BUF_SIZE];
 static volatile uint8_t cdc_rx_buffer[USB_CDC_RX_BUF_SIZE];
 
 /*
-*	We must still use the standard rx_buffer, as the HAL USB handles populating the buffer.
+*	We must still use the standard rx_buffer, as the USB interface handles populating the buffer.
 */
 #if CDC_MULTI_BUFFER == true
 static volatile uint8_t cdc_secondary_rx_buffer[CDC_SECONDARY_BUFFER_SIZE];
@@ -137,19 +138,18 @@ void cdc_stdio_init()
 	stdio_io_init(&USB_CDC_IO);
 	
 	//Register USB callbacks.
-	cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_in);
-	cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_out);
+	//cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_out);
+	//cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_in);
 	cdcdf_acm_register_callback(CDCDF_ACM_CB_STATE_C, (FUNC_PTR)cdc_usb_device_cb_state_c);
 	
 	//Wait for USB to fully initialize.
 	//usb_init() must be called before cdc_stdio_init()
 	while(usbdc_get_state() != USBD_S_CONFIG);
 	
-	//Dummy write and read needed to stop locking of comms.
-	cdcdf_acm_write(cdc_tx_buffer, 0); 
+	////Dummy write and read needed to stop locking of comms.
+	//cdcdf_acm_write(cdc_tx_buffer, 0); 
 	
-	//Dummy read sets read buffer destination. DMA will automatically put data from out endpoint in to buffer.
-	//Still needs to be called every read to prevent locking.
+	//Register read. This tells the USB interface to place the next RX in the cdc_rx_buffer.
 	cdcdf_acm_read(cdc_rx_buffer, sizeof(cdc_rx_buffer));
 	
 	return ERR_NONE;
@@ -226,23 +226,22 @@ bool __attribute__((__always_inline__)) cdc_data_terminal_ready()
 */
 bool __attribute__((__always_inline__)) cdc_tx_ready()
 {
-	return !cdc_data_transfering && cdc_data_terminal_ready();
+	return !cdc_data_transfering && cdc_data_terminal_ready() && cdcdf_acm_is_enabled();
 }
 
 /*
-*	Amount of times cdc_tx_ready has been called, and returned false.
+*	Amount of times cdc_retry_last_tx has been called from cdc_tx_ready_timeout.
 */
 static uint8_t tx_attempts;
 
+
 /*
-*	Has the last write to the TX buffer been transmitted?
-*	When tx_attempts reaches CDC_TX_MAX_RETRIES, it will either give up on the transfer,
-*	or resend the transfer.
+*	Has the last write to the TX buffer been transmitted, and is the connection valid?
 *
 *	/param		retry	Should the last transfer be resent if it reaches a timeout state?
 *
-*	/returns	True	If the last write has been transferred or reached the timeout.
-*				False	If the last write is still waiting to be transferred.
+*	/returns	True	If the transfer has completed, or if the connection was regained.
+*				False	If the transfer has timed out, or if the connection failed.
 */
 bool cdc_tx_ready_timeout(bool retry)
 {
@@ -253,37 +252,42 @@ bool cdc_tx_ready_timeout(bool retry)
 		if(has_time_elapsed_ms(CDC_TX_TIMEOUT, start_time))
 		{
 			#if CDC_TX_MAX_RETRIES >= 0
-			if(++tx_attempts > CDC_TX_MAX_RETRIES)
+			if(++tx_attempts < CDC_TX_MAX_RETRIES)
 			{
 				if(retry)
 				{
 					cdc_retry_last_tx();
 				}		
-				
-				//Mark false so if it fails again, it will not be reattempted.
-				cdc_data_transfering = false;					
-				return true;
 			}	
-			return false;		
+			else
+			{
+				cdc_data_transfering = false;
+				//cdc_abort_tx();
+				return false;
+			}
+				
 			#else
 			cdc_data_transfering = false;
-			return true;
+			//cdc_abort_tx();
+			return false;
 			#endif	
 		}
 	}
+	
 	return true;
 }
 
 /*
- * Attempt to resend the last write, if it was not transfered.
+ *	Attempt to resend the last write, if it was not transfered.
+ *	If the last transfer was aborted, it will not retry
  *
  * /returns		True if the last transfer was attempted to be resent.
  *				False if there were no transfers in a stuck state.
  */
 bool cdc_retry_last_tx()
 {
-	//Last transfer was sent successfully.
-	if(!cdc_data_transfering) return false;
+	//Last transfer was sent successfully, DTR signal is low, or .
+	if(!cdc_data_transfering || !cdc_data_terminal_ready() || !cdcdf_acm_is_enabled()) return false;
 
 	
 	cdcdf_acm_write(cdc_tx_buffer, cdc_tx_length);	
@@ -293,17 +297,6 @@ bool cdc_retry_last_tx()
 	#endif
 	
 	return true;
-}
-
-
-/*
- *	Have any new bytes been received?
- *
- *	/returns	If there are new bytes in the cdc_rx_buffer.
- */
-bool __attribute__((__always_inline__)) cdc_rx_ready(void)
-{
-	return cdc_rx_length > 0;
 }
 
 /*
@@ -324,6 +317,19 @@ void __attribute__((__always_inline__)) cdc_get_io_descriptor(struct io_descript
 {
 	return &USB_CDC_IO;
 }
+
+//extern static struct cdcdf_acm_func_data _cdcdf_acm_funcd;
+//
+//void cdc_abort_tx()
+//{
+	//cdc_data_transfering = false;
+	//usb_d_ep_abort(_cdcdf_acm_funcd.func_ep_in[1/*CDCDF_ACM_DATA_EP_INDEX*/]);
+//}
+//
+//void cdc_abort_rx()
+//{
+	//usb_d_ep_abort(_cdcdf_acm_funcd.func_ep_out);
+//}
 
 /*
 *	If enabled, any write will be stored in the TX buffer,
@@ -366,7 +372,7 @@ bool cdc_set_tx_hold_buffer(bool wait)
  * \param[in] buf		Data to write to usart
  * \param[in] length	The number of bytes to write
  *
- * \return The number of bytes written.
+ * \return The number of bytes written, or -1 if the connection was lost.
  */
  static int32_t cdc_stdio_write(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length)
 {	
@@ -374,12 +380,15 @@ bool cdc_set_tx_hold_buffer(bool wait)
 	uint16_t succesful = 0;
 	static uint8_t	retryCount = 0;
 	
-	
-	#if CDC_WAIT_FOR_TX_COMPLETE == false
-	//If a previous write is not complete. Wait for it.
-	//If CDC_TX_RETRY is true, this function will not exit until a transfer has completed, and will always be true.
-	while(!cdc_tx_ready_timeout(true));
-	#endif
+	//If a previous write is not complete, or if the DTR signal is low, give it a chance.
+	if(!cdc_tx_ready_timeout(true))
+	{
+		//No connection, give up.
+		if(!cdc_data_terminal_ready())
+		return -1;
+		
+		//Previous transfer canceled, continue with current.
+	}
 	
 
 	while(txed < length)
@@ -394,12 +403,12 @@ bool cdc_set_tx_hold_buffer(bool wait)
 		cdc_tx_length += tx_size;			//Mark how many bytes are currently in the TX buffer.
 		txed += tx_size;					//Mark how many bytes for the current write have been sent.
 		
-		RetryTransfer:
+		RetryTransfer:	
 		
 		//Send data in buffer.
 		if(!tx_hold_buffer || (tx_hold_buffer && cdc_tx_length == USB_CDC_TX_BUF_SIZE))
 		{
-			#if CDC_MIN_TX_INTERVAL > 100 //Taking a guess that any CPU will take longer than 100 microseconds to arrive back here.
+			#if CDC_MIN_TX_INTERVAL > 250 //Taking a guess that any CPU will take longer than 250 microseconds to arrive back here.
 			//Wait until the minimum amount of microseconds have elapsed since the last transfer.
 			while(micros() - previous_write_timestamp < CDC_MIN_TX_INTERVAL){}
 			#endif
@@ -410,7 +419,7 @@ bool cdc_set_tx_hold_buffer(bool wait)
 			//Initiate the USB transfer
 			cdcdf_acm_write(cdc_tx_buffer, cdc_tx_length);
 			
-			#if CDC_MIN_TX_INTERVAL > 100
+			#if CDC_MIN_TX_INTERVAL > 250
 			previous_write_timestamp = micros();
 			#endif
 		}
@@ -425,16 +434,31 @@ bool cdc_set_tx_hold_buffer(bool wait)
 			
 			if(has_time_elapsed_ms(CDC_TX_TIMEOUT, start_time))
 			{
-				//Skip transmitting block.
-				if(CDC_TX_MAX_RETRIES == 0 || ++retryCount > CDC_TX_MAX_RETRIES)
+
+				#if CDC_TX_MAX_RETRIES > 0
 				{
+					//Skip transmitting block.
+					if(++retryCount > CDC_TX_MAX_RETRIES)
+					{
+						//cdc_abort_tx();
+						cdc_data_transfering = false;
+						cdc_tx_length = 0;
+						tx_size = 0;
+						break;
+					}
+					//Transfer block failed. Retry.
+					goto RetryTransfer;
+				}
+				#else
+				{
+					//Skip transmitting block.
+					//cdc_abort_tx();
 					cdc_data_transfering = false;
 					cdc_tx_length = 0;
 					tx_size = 0;
 					break;
 				}
-				
-				goto RetryTransfer;
+				#endif
 			}
 		}
 		
@@ -573,8 +597,8 @@ static bool cdc_cb_dummy(const uint8_t ep, const enum usb_xfer_code rc, const ui
 	if (state.rs232.DTR) 
 	{
 		/* Callbacks must be registered after endpoint allocation */
-		cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_in);
-		cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_out);
+		cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_out);
+		cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_in);
 		
 		/* Start Rx */
 		cdcdf_acm_read((uint8_t*)cdc_rx_buffer, sizeof(cdc_rx_buffer));
@@ -588,10 +612,13 @@ static bool cdc_cb_dummy(const uint8_t ep, const enum usb_xfer_code rc, const ui
 	}
 	
 	//USB device unconnected, or flow control used.
-	if (state.rs232.DTR == 0 && state.rs232.DTR == 0) 
+	if (state.rs232.DTR == 0 && state.rs232.RTS == 0) 
 	{
-		//cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_dummy);
-		//cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_dummy);
+		cdcdf_acm_stop_xfer();
+		//Was causing the COM port to freeze if transfers were interrupted.
+		
+		cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_dummy);
+		cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_dummy);
 		
 		rs232_control_state.value = 0;
 	}
@@ -603,13 +630,15 @@ static bool cdc_cb_dummy(const uint8_t ep, const enum usb_xfer_code rc, const ui
 
 
 /*
- * \internal	Callback invoked when bulk OUT data received
+ * \internal	Callback invoked when a transfer to the host has finished. 
+ *
+ *				*Direction is from the host perspective, "in" means the host is receiving.
  *
  * \param[in] ep	The USB endpoint.
  * \param[in] rc	The USB transfer.
  * \param[in] count The amount of bytes being sent.
  */
-static bool cdc_cb_bulk_out(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count)
+static bool cdc_cb_bulk_in(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count)
 {
 	cdc_data_transfering = false;
 	cdc_tx_length = 0;
@@ -622,14 +651,16 @@ static bool cdc_cb_bulk_out(const uint8_t ep, const enum usb_xfer_code rc, const
 }
 
 /*
- * \internal	Callback invoked when the USB interface and buffer has received data.
+ * \internal	Callback invoked when the USB interface has populated our buffer with received data.
  *				Handles setting up next transfer, and changing status.
+ *
+ *				*Direction is from the host perspective, "out" means the host is sending.
  *
  * \param[in] ep	The USB endpoint.
  * \param[in] rc	The USB transfer.
  * \param[in] count The amount of bytes received.
  */
-static bool cdc_cb_bulk_in(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count)
+static bool cdc_cb_bulk_out(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count)
 {	
 	//Data is already in the buffer, USB used DMA to copy data from endpoint to buffer.
 	//All we need to do is set some variables to signify that we received data, call a callback,
