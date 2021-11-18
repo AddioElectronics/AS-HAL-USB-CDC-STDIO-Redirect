@@ -3,8 +3,6 @@
 #include "Addio/Embedded/Time/Timing/timing.h"
 #include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
 
-#include "Addio/Embedded/IO/Atmel Start/usb_cdc_stdio/flow_control.h"
-
 //Add 1 character for string termination.
 uint8_t rx_buffer[USB_CDC_RX_BUF_SIZE+1] = {0};
 uint8_t tx_buffer[USB_CDC_TX_BUF_SIZE+1] = {0};
@@ -14,15 +12,6 @@ volatile size_t rx_length;
 void data_rx_callback(const uint16_t length);
 
 unsigned long start_time;
-
-bool dsr = true; //cd holding
-bool dcd = false;
-bool breakstate = false; //dsr?
-
-
-//dsr=t,dcd=f,bs=f CD holding
-//dsr=f,dcd=t,bs=f dsr holding, sometimes also cts
-//dsr=f,dcd=f,bs=t 
 
 int main(void)
 {
@@ -37,8 +26,6 @@ int main(void)
 	//Initialize and redirect.
 	cdc_stdio_init();
 	
-	test_flow_control_init();
-	
 	//Register callback to see when data is received.
 	usb_cdc_stdio_register_callback(USB_CDC_RX_DATA, (FUNC_PTR)data_rx_callback);	
 	
@@ -52,9 +39,8 @@ int main(void)
 	/* Replace with your application code */
 	while (1) {
 		
-		//Instead of using callback, this is another option.
-		//Just remove "rx_length -= length;" below.
-		//rx_length = cdc_get_rx_length();
+
+		rx_length = cdc_get_rx_length();
 		
 		if(rx_length)
 		{
@@ -63,9 +49,7 @@ int main(void)
 			//Echo
 			stdio_io_write(&rx_buffer, length);
 			rx_length -= length;
-			
-			test_send_call_state_change(false);
-			test_send_serial_state(false, false, false);
+		
 			//test_send_call_state_change(true);
 			
 			//Reset timer. Transfer from host may not have finished,
@@ -92,10 +76,4 @@ void data_rx_callback(const uint16_t length)
 		and we can not receive data while in the callback.
 		This could be fixed with client side flow control, but unfortunately the HAL CDC ACM does not support it.
 	*/
-	
-	rx_length += length;
-	
-	
-	test_send_serial_state(dcd, dsr, breakstate);
-	test_send_call_state_change(true);
 }

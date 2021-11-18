@@ -137,17 +137,14 @@ void cdc_stdio_init()
 	//Initialize STDIO redirection.
 	stdio_io_init(&USB_CDC_IO);
 	
-	//Register USB callbacks.
-	//cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_out);
-	//cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_in);
-	cdcdf_acm_register_callback(CDCDF_ACM_CB_STATE_C, (FUNC_PTR)cdc_usb_device_cb_state_c);
-	
 	//Wait for USB to fully initialize.
 	//usb_init() must be called before cdc_stdio_init()
-	while(usbdc_get_state() != USBD_S_CONFIG);
+	while(usbdc_get_state() == USBD_S_DEFAULT);
 	
-	////Dummy write and read needed to stop locking of comms.
-	//cdcdf_acm_write(cdc_tx_buffer, 0); 
+	/* Callbacks must be registered after endpoint allocation */
+	cdcdf_acm_register_callback(CDCDF_ACM_CB_STATE_C, (FUNC_PTR)cdc_usb_device_cb_state_c);
+	//cdcdf_acm_register_callback(CDCDF_ACM_CB_READ, (FUNC_PTR)cdc_cb_bulk_out);
+	//cdcdf_acm_register_callback(CDCDF_ACM_CB_WRITE, (FUNC_PTR)cdc_cb_bulk_in);
 	
 	//Register read. This tells the USB interface to place the next RX in the cdc_rx_buffer.
 	cdcdf_acm_read(cdc_rx_buffer, sizeof(cdc_rx_buffer));
