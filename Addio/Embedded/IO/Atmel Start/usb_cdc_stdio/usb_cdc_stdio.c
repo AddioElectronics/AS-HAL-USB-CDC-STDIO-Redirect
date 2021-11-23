@@ -90,6 +90,7 @@ static int32_t cdc_stdio_peekMany(struct io_descriptor *const io_descr, const ui
 static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr);
 static int32_t cdc_stdio_rxReady(struct io_descriptor *const io_descr);
 static int32_t  cdc_stdio_txReady(struct io_descriptor *const io_descr);
+static int32_t cdc_stdio_flushRx(struct io_descriptor *const io_descr);
 #endif
 
 static bool cdc_cb_bulk_out(const uint8_t ep, const enum usb_xfer_code rc, const uint32_t count);
@@ -127,6 +128,7 @@ void cdc_stdio_init()
 	USB_CDC_IO.peekMany = cdc_stdio_peekMany;
 	USB_CDC_IO.rxReady = cdc_stdio_rxReady;
 	USB_CDC_IO.txReady = cdc_stdio_txReady;
+	USB_CDC_IO.flushRx = cdc_stdio_flushRx;
 	
 	USB_CDC_IO.flags.tx_wait_for_complete = false;
 	USB_CDC_IO.flags.tx_check_previous_for_completion = false;
@@ -354,6 +356,31 @@ bool cdc_set_tx_hold_buffer(bool wait)
 	return false;
 }
 
+int32_t __attribute__((__always_inline__)) cdc_write(const uint8_t* buf, const uint16_t length)
+{
+	return cdc_stdio_write(&USB_CDC_IO, buf, length);	
+}
+
+int32_t __attribute__((__always_inline__)) cdc_read(const uint8_t*  buf, const uint16_t length)
+{
+	return cdc_stdio_read(&USB_CDC_IO, buf, length);
+}
+
+int32_t __attribute__((__always_inline__)) cdc_peek()
+{
+	return cdc_stdio_peek(&USB_CDC_IO);
+}
+
+int32_t __attribute__((__always_inline__)) cdc_peekMany(const uint8_t*  buf, const uint16_t length)
+{
+	return cdc_stdio_peekMany(&USB_CDC_IO, buf, length);
+}
+
+int32_t __attribute__((__always_inline__)) cdc_flush_rx()
+{
+	return cdc_stdio_flushRx(&USB_CDC_IO);
+}
+
 
 
 #pragma endregion Functions
@@ -479,6 +506,7 @@ bool cdc_set_tx_hold_buffer(bool wait)
 }
 
 
+
 /*
  * \internal Read string from the buffer that was received from the USB interface.
  *
@@ -520,9 +548,25 @@ static int32_t cdc_stdio_read(struct io_descriptor *const io_descr, const uint8_
 	return (int32_t)rx_count;
 }
 
+
+
 #if __has_include("../../addio_io.h") // required for Addio/Embedded/IO/Serial/(print/reader)
 
 #if CDC_MULTI_BUFFER == true
+
+/*
+ * \internal Clears all data from the ring buffer.
+ *
+ * \param[in] buf		A buffer to read data to
+ *
+ * \return The number of bytes flushed.
+ */
+static int32_t cdc_stdio_flushRx(struct io_descriptor *const io_descr)
+{
+	int32_t count = rx_ring_buffer.length;	
+	empty_ring_buffer(&rx_ring_buffer);
+	return count;
+}
 
 static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr)
 {
@@ -541,6 +585,20 @@ static int32_t cdc_stdio_peekMany(struct io_descriptor *const io_descr, const ui
 }
 
 #else
+
+/*
+ * \internal Clears all data from the rx buffer.
+ *
+ * \param[in] buf		A buffer to read data to
+ *
+ * \return The number of bytes flushed.
+ */
+static int32_t cdc_stdio_flushRx(struct io_descriptor *const io_descr)
+{
+	int32_t count = cdc_rx_length;
+	cdc_rx_length = 0;
+	return count;
+}
 
 static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr)
 {

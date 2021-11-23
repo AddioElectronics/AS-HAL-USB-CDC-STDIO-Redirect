@@ -1,5 +1,5 @@
 # AS-HAL-USB-CDC-STDIO-Redirect
-#### `V0.2.1`
+#### `V0.2.2`
 
 C Library for use with Atmel Start's USB CDC ACM driver(HAL). 
 

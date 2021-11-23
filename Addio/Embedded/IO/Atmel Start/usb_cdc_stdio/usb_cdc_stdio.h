@@ -61,11 +61,9 @@ size_t cdc_tx_capacity();
 *	Checks to see if the DTR signal is detected. If it is we can deem that we are connected.
 */
 bool cdc_data_terminal_ready();
-
 bool cdc_tx_ready();
 bool cdc_tx_ready_timeout(bool retry);
 bool cdc_retry_last_tx();
-
 uint16_t cdc_get_rx_length();
 
 
@@ -81,9 +79,12 @@ void cdc_abort_rx();
 
 bool cdc_set_tx_hold_buffer(bool wait);
 
-void cdc_disable_tx_wait_to_fill();
 
-
+inline int32_t cdc_write(const uint8_t* buf, const uint16_t length);
+inline int32_t cdc_read(const uint8_t*  buf, const uint16_t length);
+inline int32_t cdc_peek();
+inline int32_t cdc_peekMany(const uint8_t*  buf, const uint16_t length);
+inline int32_t cdc_flush_rx();
 
 
 #pragma endregion Functions
