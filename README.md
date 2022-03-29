@@ -24,6 +24,7 @@ Redirects STDIO to USB, and handles transfers to and from USB.
 
 ### Supported Devices
 `Recently added devices have not been tested. If there are any problems please raise an Issue.`
+
 Should work with all Arm Cortex devices currently supported by Atmel Start.
 - Cortex M0+
     - SAMD21
