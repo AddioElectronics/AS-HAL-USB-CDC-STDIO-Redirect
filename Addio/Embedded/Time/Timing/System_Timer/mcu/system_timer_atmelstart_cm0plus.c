@@ -16,34 +16,84 @@
 /*
 *	Include IC header
 */
-#if defined(__SAMD21J18A__)
-#include <samd21j18a.h>
-#elif defined(__SAMD21J17A__)
-#include <samd21j17a.h>
-#elif defined(__SAMD21J16A__)
-#include <samd21j16a.h>
-#elif defined(__SAMD21J15A__)
-#include <samd21j15a.h>
-#elif defined(__SAMD21G18A__)
-#include <samd21g18a.h>
-#elif defined(__SAMD21G17A__)
-#include <samd21g17a.h>
-#elif defined(__SAMD21G18AU__)
-#include <samd21g18au.h>
-#elif defined(__SAMD21G17AU__)
-#include <samd21g17au.h>
-#elif defined(__SAMD21G16A__)
-#include <samd21g16a.h>
-#elif defined(__SAMD21G15A__)
-#include <samd21j15a.h>
-#elif defined(__SAMD21E18A__)
-#include <samd21e18a.h>
-#elif defined(__SAMD21E17A__)
-#include <samd21e17a.h>
-#elif defined(__SAMD21E16A__)
-#include <samd21e16a.h>
-#elif defined(__SAMD21E15A__)
-#include <samd21e15a.h>
+//SAMD21
+#if   defined(__SAMD21E15A__) || defined(__ATSAMD21E15A__)
+#include "samd21e15a.h"
+#elif defined(__SAMD21E16A__) || defined(__ATSAMD21E16A__)
+#include "samd21e16a.h"
+#elif defined(__SAMD21E17A__) || defined(__ATSAMD21E17A__)
+#include "samd21e17a.h"
+#elif defined(__SAMD21E18A__) || defined(__ATSAMD21E18A__)
+#include "samd21e18a.h"
+#elif defined(__SAMD21G15A__) || defined(__ATSAMD21G15A__)
+#include "samd21g15a.h"
+#elif defined(__SAMD21G16A__) || defined(__ATSAMD21G16A__)
+#include "samd21g16a.h"
+#elif defined(__SAMD21G17A__) || defined(__ATSAMD21G17A__)
+#include "samd21g17a.h"
+#elif defined(__SAMD21G17AU__) || defined(__ATSAMD21G17AU__)
+#include "samd21g17au.h"
+#elif defined(__SAMD21G18A__) || defined(__ATSAMD21G18A__)
+#include "samd21g18a.h"
+#elif defined(__SAMD21G18AU__) || defined(__ATSAMD21G18AU__)
+#include "samd21g18au.h"
+#elif defined(__SAMD21J15A__) || defined(__ATSAMD21J15A__)
+#include "samd21j15a.h"
+#elif defined(__SAMD21J16A__) || defined(__ATSAMD21J16A__)
+#include "samd21j16a.h"
+#elif defined(__SAMD21J17A__) || defined(__ATSAMD21J17A__)
+#include "samd21j17a.h"
+#elif defined(__SAMD21J18A__) || defined(__ATSAMD21J18A__)
+#include "samd21j18a.h"
+
+//SAMDA1
+#if   defined(__SAMDA1E14A__) || defined(__ATSAMDA1E14A__)
+#include "samda1e14a.h"
+#elif defined(__SAMDA1E15A__) || defined(__ATSAMDA1E15A__)
+#include "samda1e15a.h"
+#elif defined(__SAMDA1E16A__) || defined(__ATSAMDA1E16A__)
+#include "samda1e16a.h"
+#elif defined(__SAMDA1G14A__) || defined(__ATSAMDA1G14A__)
+#include "samda1g14a.h"
+#elif defined(__SAMDA1G15A__) || defined(__ATSAMDA1G15A__)
+#include "samda1g15a.h"
+#elif defined(__SAMDA1G16A__) || defined(__ATSAMDA1G16A__)
+#include "samda1g16a.h"
+#elif defined(__SAMDA1J14A__) || defined(__ATSAMDA1J14A__)
+#include "samda1j14a.h"
+#elif defined(__SAMDA1J15A__) || defined(__ATSAMDA1J15A__)
+#include "samda1j15a.h"
+#elif defined(__SAMDA1J16A__) || defined(__ATSAMDA1J16A__)
+#include "samda1j16a.h"
+
+//SAML21
+#elif   defined(__SAML21E18A__) || defined(__ATSAML21E18A__)
+#include "saml21e18a.h"
+#elif defined(__SAML21G18A__) || defined(__ATSAML21G18A__)
+#include "saml21g18a.h"
+#elif defined(__SAML21J18A__) || defined(__ATSAML21J18A__)
+#include "saml21j18a.h"
+
+//SAML22
+#elif   defined(__SAML22G16A__) || defined(__ATSAML22G16A__)
+#include "saml22g16a.h"
+#elif defined(__SAML22G17A__) || defined(__ATSAML22G17A__)
+#include "saml22g17a.h"
+#elif defined(__SAML22G18A__) || defined(__ATSAML22G18A__)
+#include "saml22g18a.h"
+#elif defined(__SAML22J16A__) || defined(__ATSAML22J16A__)
+#include "saml22j16a.h"
+#elif defined(__SAML22J17A__) || defined(__ATSAML22J17A__)
+#include "saml22j17a.h"
+#elif defined(__SAML22J18A__) || defined(__ATSAML22J18A__)
+#include "saml22j18a.h"
+#elif defined(__SAML22N16A__) || defined(__ATSAML22N16A__)
+#include "saml22n16a.h"
+#elif defined(__SAML22N17A__) || defined(__ATSAML22N17A__)
+#include "saml22n17a.h"
+#elif defined(__SAML22N18A__) || defined(__ATSAML22N18A__)
+#include "saml22n18a.h"
+
 #elif //Add your IC here.
 
 #else

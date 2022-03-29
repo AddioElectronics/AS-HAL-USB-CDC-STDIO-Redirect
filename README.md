@@ -1,11 +1,8 @@
 # AS-HAL-USB-CDC-STDIO-Redirect
-#### `V0.2.2`
+#### `V0.2.3`
 
 C Library for use with Atmel Start's USB CDC ACM driver(HAL). 
-
-Redirect STDIO to USB, and handles transfers to and from USB.
-
-
+Redirects STDIO to USB, and handles transfers to and from USB.
 
 ## Usage
 
@@ -14,20 +11,56 @@ Redirect STDIO to USB, and handles transfers to and from USB.
   - Add the `Middleware/Utilities/STDIO Redirect` component.
   - Generate your project
 - Import the Addio folder and its contents to your project.
-- _(Optional)_ Edit the [config file](https://github.com/AddioElectronics/AS-HAL-USB-CDC-STDIO-Redirect/blob/master/Addio/Embedded/IO/Atmel%20Start/usb_cdc_stdio/usb_cdc_stdio_config.h) to your liking.
-- In `atmel_start.c`, comment out `stdio_redirect_init();`
-- `#include "Addio/Embedded/IO/Atmel Start/cdc_stdio_redirect/usb_cdc_stdio.h"`
-- `#include "Addio/Embedded/Time/System_Timer/system_timer.h"`
-- Call `cdc_stdio_init()` and `system_timer_init()` in your initialization routine. *1 *2
+- _(Optional)_ Edit the [config file](https://github.com/AddioElectronics/AS-HAL-USB-CDC-STDIO-Redirect/blob/master/Addio/Embedded/IO/Atmel%20Start/usb_cdc_stdio/usb_cdc_stdio_config.h).
+- In "atmel_start.c," comment out `stdio_redirect_init();`
+- #include "Addio/Embedded/IO/Atmel Start/cdc_stdio_redirect/usb_cdc_stdio.h"
+- #include "Addio/Embedded/Time/System_Timer/system_timer.h"
+- Call `cdc_stdio_init()` and `system_timer_init()` in your initialization routine. ***1**
 - Register your desired callbacks using `usb_cdc_stdio_register_callback`
 - `printf`, `stdio_io_write` and `stdio_io_read`  away!
 
-`*1 : If the system timer is not available. You will need to write your own millis() function, which returns how many milliseconds have elapsed since program start.
-Create a source file and include "Addio\Embedded\Time\Timing\timing.h", which contains the millis() prototype.`
+1. If the system timer is not available. You will need to write your own millis() function, which returns how many milliseconds have elapsed since program start.
+ Create a source file and include "Addio\Embedded\Time\Timing\timing.h", which contains the millis() prototype.
 
-*2 : If you are not using the Samd21, you will need to add includes to your IC in the `system_timer_atmelstart_cm0plus.c,` like the example below. In future versions more MCU's will be supported out of the box.
+### Supported Devices
+`Recently added devices have not been tested. If there are any problems please raise an Issue.`
+Should work with all Arm Cortex devices currently supported by Atmel Start.
+- Cortex M0+
+    - SAMD21
+    - SAMDA1
+    - SAML21
+    - SAML22
+- Cortex M3 `(Untested)`
+    - SAM3A
+    - SAM3N
+    - SAM3S
+    - SAM3U
+    - SAM3X
+    - SAM3SD
+- Cortex M4 `(Untested)`
+    - SAM4C
+    - SAM4E
+    - SAM4L
+- Cortex M4F `(Untested)`
+    - SAMD51
+    - SAME51
+    - SAME53
+    - SAMD54
+- Cortex M7 `(Untested)`
+    - SAME70
+    - SAMS70
+    - SAMV70
+    - SAMV71
 
-*3 : If you are not using a cm0plus, you will need to add an include for that. As long as they use the same macros/functions/registers as cm0plus, if you choose to you can modify `system_timer_atmelstart_cm0plus.c,` or better yet create a new file for the CPU type.  In future versions more CPU's will be supported out of the box.
+#### How to Add Support for a Device
+- Navigate to `Addio\Embedded\Time\Timing\System_Timer\mcu` folder
+- Open source file of your cpu type ***1** 
+- Add an #elif directive checking if your device is defined `#elif defined(__SAMD21J18A__)` ***2**
+- Under #elif include your device `#include <samd21j18a.h>` ***3**
+
+1. For M0+ that would be `system_timer_atmelstart_cm0plus.c`
+2. To get device definition go to "Project Properties\Toolchain\ARM/GNU Common" and copy value after -D
+3. For SAMD21J18A that would be `#include "samd21j18a.h"`
 
 ``` C
 /*
@@ -44,6 +77,15 @@ Create a source file and include "Addio\Embedded\Time\Timing\timing.h", which co
 
 #include <core_cm0plus.h> //Requires IC header.
 ```
+
+#### How to Add Support for a CPU
+- Navigate to `Addio\Embedded\Time\Timing\System_Timer\mcu` folder
+- Duplicate one of the source files and rename to your cpu type
+- On line `#if __has_include("RTE_Components.h") && __has_include("core_cmx.h")`, replace "core_cmx.h" with your CPU's core header.
+- Remove all devices under /\*Include IC header\*/
+- Add your device as seen [here](#####How-to-Add-Support-for-a-Device). 
+
+Note : *system_timer_init()*, *millis()*, and *micros()* may need to be modified. I am unsure if all Atmel Start Devices share Macros and Structures for the System Timer.
 
 ### Example (Echo/printf)
 
