@@ -85,7 +85,7 @@ static bool cdc_usb_device_cb_state_c(usb_cdc_control_signal_t state);
 static int32_t cdc_stdio_write(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length);
 static int32_t cdc_stdio_read(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length);
 
-#if __has_include("../../addio_io.h")
+#if __has_include("Addio/Embedded/IO/addio_io.h")
 static int32_t cdc_stdio_peekMany(struct io_descriptor *const io_descr, const uint8_t* buf, const uint16_t length);
 static int32_t cdc_stdio_peek(struct io_descriptor *const io_descr);
 static int32_t cdc_stdio_rxReady(struct io_descriptor *const io_descr);
@@ -550,7 +550,7 @@ static int32_t cdc_stdio_read(struct io_descriptor *const io_descr, const uint8_
 
 
 
-#if __has_include("../../addio_io.h") // required for Addio/Embedded/IO/Serial/(print/reader)
+#if __has_include("Addio/Embedded/IO/addio_io.h") // required for Addio/Embedded/IO/Serial/(print/reader)
 
 #if CDC_MULTI_BUFFER == true
 
