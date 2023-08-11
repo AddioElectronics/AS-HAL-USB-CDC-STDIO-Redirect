@@ -1,5 +1,4 @@
 #include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
-#include "Addio/Embedded/Time/Timing/timing.h"
 #include "check_mcu_core.h"
 
 /*

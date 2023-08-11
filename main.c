@@ -1,6 +1,6 @@
 #include <atmel_start.h>
 #include "Addio/Embedded/IO/Atmel Start/usb_cdc_stdio/usb_cdc_stdio.h"
-#include "Addio/Embedded/Time/Timing/timing.h"
+#include "Addio/Universal/Time/timing.h"
 #include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
 
 //Add 1 character for string termination.
@@ -58,10 +58,13 @@ int main(void)
 			start_time = millis();
 		}
 		
-		if(has_time_elapsed_ms(2500, start_time))
+		if(has_time_elapsed_ms(100, start_time))
 		{
-			printf("Elapsed Time : %d\n", start_time);
+			uint32_t hr, min, sec, ms;
+			convert_ms_to_time(start_time, &hr, &min, &sec, &ms);
 			start_time = millis();
+			printf("Elapsed Time : %d:%d:%02d.%03d\t-\t%d Total Milliseconds\n\r", hr, min, sec, ms);
+			
 		}
 	}
 }

@@ -5,7 +5,7 @@
 #include <hal_usb_device.h>
 
 
-#include "Addio/Embedded/Time/Timing/timing.h"
+#include "Addio/Universal/Time/timing.h"
 #include "Addio/Universal/IO/buffers/ring_buffer.h"
 
 
@@ -122,7 +122,7 @@ void cdc_stdio_init()
 	USB_CDC_IO.write = cdc_stdio_write;
 	
 	//Use extended io, required for Addio/Embedded/IO/Serial/(print/reader)
-	#if __has_include("../../addio_io.h")
+	#if __has_include("Addio/Embedded/IO/addio_io.h")
 	//USB_CDC_IO.get = cdc_stdio_get;
 	USB_CDC_IO.peek = cdc_stdio_peek;
 	USB_CDC_IO.peekMany = cdc_stdio_peekMany;

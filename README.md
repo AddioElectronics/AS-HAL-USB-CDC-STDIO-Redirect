@@ -1,9 +1,9 @@
 # AS-HAL-USB-CDC-STDIO-Redirect
-#### `V0.2.4`
+#### `V0.2.6`
 
 C Library for use with Atmel Start's USB CDC ACM driver(HAL). 
 Redirects STDIO to USB, and handles transfers to and from USB.
-
+Also fixes the issue that the Atmel Start example had, where data was consistantly garbage, or just plain non-existent.
 ## Usage
 
 ##### Device
@@ -161,8 +161,10 @@ int main(void)
 		
 		if(has_time_elapsed_ms(2500, start_time))
 		{
-			printf("Elapsed Time : %d\n", start_time);
+			uint32_t hr, min, sec, ms;
+			convert_ms_to_time(start_time, &hr, &min, &sec, &ms);
 			start_time = millis();
+			printf("Elapsed Time : %d:%d:%02d.%03d\t-\t%d Total Milliseconds\n\r", hr, min, sec, ms);
 		}
 	}
 }
