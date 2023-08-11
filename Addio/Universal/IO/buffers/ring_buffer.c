@@ -44,7 +44,7 @@ ringbuffer_error_t ring_buffer_init(void* buf, size_t size, uint8_t elem_size, r
 */
 ringbuffer_error_t ring_buffer_put(ring_buffer_t* rb, void* data)
 {
-	ASSERT(data);
+	ASSERT(rb && data);
 	
 	volatile hal_atomic_t flags;
 	
@@ -79,7 +79,7 @@ ringbuffer_error_t ring_buffer_put(ring_buffer_t* rb, void* data)
 */
 ringbuffer_error_t ring_buffer_get(ring_buffer_t* rb, void* out_data)
 {
-	ASSERT(out_data);
+	ASSERT(rb && out_data);
 	
 	volatile hal_atomic_t flags;
 	
@@ -93,8 +93,8 @@ ringbuffer_error_t ring_buffer_get(ring_buffer_t* rb, void* out_data)
 	
 	rb->tail += rb->elem_size;
 	
-	if(rb->tail == rb->size)
-	rb->tail = 0;
+	if(rb->tail == rb->end)
+	rb->tail = rb->buf;
 	
 	rb->length -= rb->elem_size;
 	
@@ -116,7 +116,7 @@ ringbuffer_error_t ring_buffer_get(ring_buffer_t* rb, void* out_data)
 */
 uint32_t ring_buffer_write(ring_buffer_t* rb, void* data, uint32_t count)
 {
-	ASSERT(data);
+	ASSERT(rb && data);
 	
 	if(count == 0)
 	{
@@ -140,7 +140,7 @@ uint32_t ring_buffer_write(ring_buffer_t* rb, void* data, uint32_t count)
 	//it may receive garbage data.
 	atomic_enter_critical(&flags);
 	
-	size_t available_space = ring_buffer_get_available_space(rb);	
+	size_t available_space = ring_buffer_get_available_space(rb);
 	uint8_t* head_snapshot = rb->head;
 	
 	//Not enough room for data.
@@ -165,7 +165,7 @@ uint32_t ring_buffer_write(ring_buffer_t* rb, void* data, uint32_t count)
 		size_t end_space;	//Stores amount of bytes between head and end.
 		size_t start_size;	//Stores amount of bytes left to write after the start.
 		
-		end_space = rb->end - rb->head;		
+		end_space = rb->end - rb->head;
 		start_size = write_size - end_space;
 		rb->head = rb->buf + start_size;
 		
@@ -181,7 +181,10 @@ uint32_t ring_buffer_write(ring_buffer_t* rb, void* data, uint32_t count)
 		
 		rb->head += write_size;
 		
-		atomic_leave_critical(&flags);		
+		if(rb->head == rb->end)
+		rb->head = rb->buf;
+		
+		atomic_leave_critical(&flags);
 		
 		memcpy(head_snapshot, data, write_size);
 	}
@@ -203,11 +206,11 @@ uint32_t ring_buffer_write(ring_buffer_t* rb, void* data, uint32_t count)
 */
 uint32_t ring_buffer_read(ring_buffer_t* rb, void* out_data, uint32_t count)
 {
-	ASSERT(out_data);
+	ASSERT(rb && out_data);
 	
 	if(count == 0)
 	{
-		return;
+		return 0;
 	}
 	
 	volatile hal_atomic_t flags;
@@ -263,6 +266,87 @@ uint32_t ring_buffer_read(ring_buffer_t* rb, void* out_data, uint32_t count)
 		//Read fits between head and end.
 		
 		rb->tail += read_size;
+		
+		if(rb->tail == rb->end)
+		rb->tail = rb->buf;
+		
+		atomic_leave_critical(&flags);
+		
+		memcpy(out_data, tail_snapshot, read_size);
+	}
+	
+	
+	return total_read;
+}
+
+ringbuffer_error_t ring_buffer_peek(ring_buffer_t* rb, void* out_data)
+{
+	ASSERT(rb && out_data);
+	
+	if(ring_buffer_empty(rb))
+	return RBUF_ERROR_EMPTY;
+	
+	memcpy(out_data, rb->tail, rb->elem_size);
+	
+	return RBUF_ERROR_NONE;
+}
+
+
+
+uint32_t ring_buffer_peekMany(ring_buffer_t* rb, void* out_data, uint32_t count)
+{
+	ASSERT(rb && out_data);
+	
+	if(count == 0)
+	{
+		return 0;
+	}
+	
+	volatile hal_atomic_t flags;
+	
+	if(ring_buffer_empty(rb))
+	return 0;
+	
+	uint32_t total_read;	//How many elements were read.
+	size_t read_size = count * rb->elem_size;
+	
+	//Adjust tail and count within the critical space,
+	//and do the copy afterwards. This allows us to get in and out of the critical space.
+	//If an interrupt happens, it will copy data after the new tail.
+	//When we come back, we will copy data from the snapshot.
+	//Only problem is, if a write happens in an interrupt before the data is copied,
+	//it may overwrite our data, and out_data may receive that write.
+	atomic_enter_critical(&flags);
+	
+	uint8_t* tail_snapshot = rb->tail;
+	
+	//Buffer contains less data then requested.
+	if(rb->length < read_size)
+	{
+		//Copy all the data.
+		read_size = rb->length;
+	}
+	
+	//Let the calling function know how many elements were read.
+	total_read = read_size / rb->elem_size;
+	
+	//If the read fits between tail and end, the tail is after the head.
+	if(tail_snapshot + read_size > rb->end)
+	{
+		//Read does not fit and will need to be split into 2 copies.
+		
+		size_t end_space = rb->end - rb->tail;		//Stores amount of bytes between tail and end.
+		size_t start_size = read_size - end_space;	//Stores amount of bytes left to read after the start.
+		
+		atomic_leave_critical(&flags);
+		
+		memcpy(out_data, tail_snapshot, end_space);
+		memcpy(out_data + end_space, rb->buf, start_size);
+	}
+	else
+	{
+		//Read fits between head and end.
+		
 		
 		atomic_leave_critical(&flags);
 		

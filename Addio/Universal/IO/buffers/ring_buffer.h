@@ -39,8 +39,14 @@ ringbuffer_error_t ring_buffer_init(void* buf, size_t size, uint8_t elem_size, r
 ringbuffer_error_t ring_buffer_put(ring_buffer_t* rb, void* data);
 ringbuffer_error_t ring_buffer_get(ring_buffer_t* rb, void* out_data);
 
+
+
 uint32_t ring_buffer_write(ring_buffer_t* rb, void* data, uint32_t count);
 uint32_t ring_buffer_read(ring_buffer_t* rb, void* out_data, uint32_t count);
+
+ringbuffer_error_t ring_buffer_peek(ring_buffer_t* rb, void* out_data);
+uint32_t ring_buffer_peekMany(ring_buffer_t* rb, void* out_data, uint32_t count);
+
 
 void empty_ring_buffer(ring_buffer_t* rb);
 
