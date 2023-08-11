@@ -1,5 +1,6 @@
-#include "../system_timer.h"
-#include "../../timing.h"
+#include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
+#include "Addio/Embedded/Time/Timing/timing.h"
+#include "check_mcu_core.h"
 
 /*
 *	Note:	If you are using the system timer for something else, you are still able to use the timing functions.
@@ -8,7 +9,7 @@
 *			That is all that is required to get "millis" and "micros" function working.
 */
 
-#if __has_include("RTE_Components.h") && __has_include("core_cm4.h")
+#if __has_include("RTE_Components.h") && __has_include("core_cm4.h") && IS_MCU_CORE_CM4F
 #include <RTE_Components.h> //Contains ATMEL_START definition
 
 #if defined(ATMEL_START)
@@ -78,7 +79,7 @@
 #elif defined(__SAME54P20A__) || defined(__ATSAME54P20A__)
 #include "same54p20a.h"
 
-#elif //Add your IC here.
+//#elif Add your IC here.
 
 #else
 #error unsupported

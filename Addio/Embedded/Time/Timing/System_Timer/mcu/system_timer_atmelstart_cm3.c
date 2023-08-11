@@ -1,5 +1,6 @@
-#include "../system_timer.h"
-#include "../../timing.h"
+#include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
+#include "Addio/Embedded/Time/Timing/timing.h"
+#include "check_mcu_core.h"
 
 /*
 *	Note:	If you are using the system timer for something else, you are still able to use the timing functions.
@@ -8,7 +9,7 @@
 *			That is all that is required to get "millis" and "micros" function working.
 */
 
-#if __has_include("RTE_Components.h") && __has_include("core_cm3.h")
+#if __has_include("RTE_Components.h") && __has_include("core_cm3.h") && IS_MCU_CORE_CM3
 #include <RTE_Components.h> //Contains ATMEL_START definition
 
 #warning Cortex M3 Untested
@@ -19,100 +20,100 @@
 *	Include IC header
 */
 //SAM3A
-#if defined __SAM3A4C__
+#if defined(__SAM3A4C__)
 #include "sam3a4c.h"
-#elif defined __SAM3A8C__
+#elif defined(__SAM3A8C__)
 #include "sam3a8c.h"
 
 //SAM3X
-#elif defined __SAM3X4C__
+#elif defined(__SAM3X4C__)
 #include "sam3x4c.h"
-#elif defined __SAM3X4E__
+#elif defined(__SAM3X4E__)
 #include "sam3x4e.h"
-#elif defined __SAM3X8C__
+#elif defined(__SAM3X8C__)
 #include "sam3x8c.h"
-#elif defined __SAM3X8E__
+#elif defined(__SAM3X8E__)
 #include "sam3x8e.h"
-#elif defined __SAM3X8H__
+#elif defined(__SAM3X8H__)
 #include "sam3x8h.h"
 
 //SAM3N
-#elif defined __SAM3N00A__
+#elif defined(__SAM3N00A__)
 #include "sam3n00a.h"
-#elif defined __SAM3N0A__
+#elif defined(__SAM3N0A__)
 #include "sam3n0a.h"
-#elif defined __SAM3N00B__
+#elif defined(__SAM3N00B__)
 #include "sam3n00b.h"
-#elif defined __SAM3N0B__
+#elif defined(__SAM3N0B__)
 #include "sam3n0b.h"
-#elif defined __SAM3N0C__
+#elif defined(__SAM3N0C__)
 #include "sam3n0c.h"
-#elif defined __SAM3N1A__
+#elif defined(__SAM3N1A__)
 #include "sam3n1a.h"
-#elif defined __SAM3N1B__
+#elif defined(__SAM3N1B__)
 #include "sam3n1b.h"
-#elif defined __SAM3N1C__
+#elif defined(__SAM3N1C__)
 #include "sam3n1c.h"
-#elif defined __SAM3N2A__
+#elif defined(__SAM3N2A__)
 #include "sam3n2a.h"
-#elif defined __SAM3N2B__
+#elif defined(__SAM3N2B__)
 #include "sam3n2b.h"
-#elif defined __SAM3N2C__
+#elif defined(__SAM3N2C__)
 #include "sam3n2c.h"
-#elif defined __SAM3N4A__
+#elif defined(__SAM3N4A__)
 #include "sam3n4a.h"
-#elif defined __SAM3N4B__
+#elif defined(__SAM3N4B__)
 #include "sam3n4b.h"
-#elif defined __SAM3N4C__
+#elif defined(__SAM3N4C__)
 #include "sam3n4c.h"
 
 //SAM3S
-#if defined __SAM3S1A__
+#elif defined(__SAM3S1A__)
 #include "sam3s1a.h"
-#elif defined __SAM3S1B__
+#elif defined(__SAM3S1B__)
 #include "sam3s1b.h"
-#elif defined __SAM3S1C__
+#elif defined(__SAM3S1C__)
 #include "sam3s1c.h"
-#elif defined __SAM3S2A__
+#elif defined(__SAM3S2A__)
 #include "sam3s2a.h"
-#elif defined __SAM3S2B__
+#elif defined(__SAM3S2B__)
 #include "sam3s2b.h"
-#elif defined __SAM3S2C__
+#elif defined(__SAM3S2C__)
 #include "sam3s2c.h"
-#elif defined __SAM3S4A__
+#elif defined(__SAM3S4A__)
 #include "sam3s4a.h"
-#elif defined __SAM3S4B__
+#elif defined(__SAM3S4B__)
 #include "sam3s4b.h"
-#elif defined __SAM3S4C__
+#elif defined(__SAM3S4C__)
 #include "sam3s4c.h"
 
 
 //SAM3SD
-#elif defined __SAM3SD8B__
+#elif defined(__SAM3SD8B__)
 #include "sam3sd8b.h"
-#elif defined __SAM3SD8C__
+#elif defined(__SAM3SD8C__)
 #include "sam3sd8c.h"
-#elif defined __SAM3S8B__
+#elif defined(__SAM3S8B__)
 #include "sam3s8b.h"
-#elif defined __SAM3S8C__
+#elif defined(__SAM3S8C__)
 #include "sam3s8c.h"
 
 //SAM3U
-#elif defined __SAM3U1C__
+#elif defined(__SAM3U1C__)
 #include "sam3u1c.h"
-#elif defined __SAM3U1E__
+#elif defined(__SAM3U1E__)
 #include "sam3u1e.h"
-#elif defined __SAM3U2C__
+#elif defined(__SAM3U2C__)
 #include "sam3u2c.h"
-#elif defined __SAM3U2E__
+#elif defined(__SAM3U2E__)
 #include "sam3u2e.h"
-#elif defined __SAM3U4C__
+#elif defined(__SAM3U4C__)
 #include "sam3u4c.h"
-#elif defined __SAM3U4E__
+#elif defined(__SAM3U4E__)
 #include "sam3u4e.h"
 
 
-#elif //Add your IC here.
+//#elif Add your IC here.
 
 #else
 #error unsupported

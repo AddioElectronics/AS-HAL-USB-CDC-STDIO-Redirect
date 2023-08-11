@@ -1,5 +1,6 @@
-#include "../system_timer.h"
-#include "../../timing.h"
+#include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
+#include "Addio/Embedded/Time/Timing/timing.h"
+#include "check_mcu_core.h"
 
 /*
 *	Note:	If you are using the system timer for something else, you are still able to use the timing functions.
@@ -8,7 +9,7 @@
 *			That is all that is required to get "millis" and "micros" function working.
 */
 
-#if __has_include("RTE_Components.h") && __has_include("core_cm4.h")
+#if __has_include("RTE_Components.h") && __has_include("core_cm4.h") && IS_MCU_CORE_CM4
 #include <RTE_Components.h> //Contains ATMEL_START definition
 
 #warning Cortex M4 Untested
@@ -25,13 +26,13 @@
 #include "sam4cp_1.h"
 
 //SAM4E
-#elif defined __SAM4E8C__
+#elif defined(__SAM4E8C__)
 #include "sam4e8c.h"
-#elif defined __SAM4E8E__
+#elif defined(__SAM4E8E__)
 #include "sam4e8e.h"
-#elif defined __SAM4E16C__
+#elif defined(__SAM4E16C__)
 #include "sam4e16c.h"
-#elif defined __SAM4E16E__
+#elif defined(__SAM4E16E__)
 #include "sam4e16e.h"
 
 //SAM4L
@@ -52,7 +53,7 @@
 
 //SAM4S
 
-#elif //Add your IC here.
+//#elif Add your IC here.
 
 #else
 #error unsupported

@@ -1,11 +1,12 @@
 # AS-HAL-USB-CDC-STDIO-Redirect
-#### `V0.2.3`
+#### `V0.2.4`
 
 C Library for use with Atmel Start's USB CDC ACM driver(HAL). 
 Redirects STDIO to USB, and handles transfers to and from USB.
 
 ## Usage
 
+##### Device
 - Create a project with Atmel Start.
   - Add the `Middleware/USB Stack/USB Device CDC ACM` component.
   - Add the `Middleware/Utilities/STDIO Redirect` component.
@@ -17,14 +18,19 @@ Redirects STDIO to USB, and handles transfers to and from USB.
 - #include "Addio/Embedded/Time/System_Timer/system_timer.h"
 - Call `cdc_stdio_init()` and `system_timer_init()` in your initialization routine. ***1**
 - Register your desired callbacks using `usb_cdc_stdio_register_callback`
+- Wait for a connection ***2**
 - `printf`, `stdio_io_write` and `stdio_io_read`  away!
+
+##### PC
+- Connect to the COM port of the device.
+- Set the DTR line ***2**
 
 1. If the system timer is not available. You will need to write your own millis() function, which returns how many milliseconds have elapsed since program start.
  Create a source file and include "Addio\Embedded\Time\Timing\timing.h", which contains the millis() prototype.
+2. Data cannot be transferred or received until DTR is set.
 
 ### Supported Devices
 `Recently added devices have not been tested. If there are any problems please raise an Issue.`
-
 Should work with all Arm Cortex devices currently supported by Atmel Start.
 - Cortex M0+
     - SAMD21
@@ -58,6 +64,8 @@ Should work with all Arm Cortex devices currently supported by Atmel Start.
 - Open source file of your cpu type ***1** 
 - Add an #elif directive checking if your device is defined `#elif defined(__SAMD21J18A__)` ***2**
 - Under #elif include your device `#include <samd21j18a.h>` ***3**
+- Open `check_mcu_core.h`
+- Add your device like `|| defined(__SAM****__)` to the macro for your cpu type.
 
 1. For M0+ that would be `system_timer_atmelstart_cm0plus.c`
 2. To get device definition go to "Project Properties\Toolchain\ARM/GNU Common" and copy value after -D

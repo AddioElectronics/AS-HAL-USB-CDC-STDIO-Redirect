@@ -1,6 +1,6 @@
-#include "../system_timer.h"
-#include "../../timing.h"
-
+#include "Addio/Embedded/Time/Timing/System_Timer/system_timer.h"
+#include "Addio/Embedded/Time/Timing/timing.h"
+#include "check_mcu_core.h"
 /*
 *	Note:	If you are using the system timer for something else, you are still able to use the timing functions.
 *			Just make sure you increment "system_timer_overflows" in your event handler,
@@ -9,7 +9,7 @@
 */
 
 
-#if __has_include("RTE_Components.h") && __has_include("core_cm0plus.h")
+#if __has_include("RTE_Components.h") && __has_include("core_cm0plus.h")  && IS_MCU_CORE_CM0PLUS
 #include <RTE_Components.h> //Contains ATMEL_START definition
 #if defined(ATMEL_START)
 
@@ -47,7 +47,7 @@
 #include "samd21j18a.h"
 
 //SAMDA1
-#if   defined(__SAMDA1E14A__) || defined(__ATSAMDA1E14A__)
+#elif   defined(__SAMDA1E14A__) || defined(__ATSAMDA1E14A__)
 #include "samda1e14a.h"
 #elif defined(__SAMDA1E15A__) || defined(__ATSAMDA1E15A__)
 #include "samda1e15a.h"
@@ -94,7 +94,7 @@
 #elif defined(__SAML22N18A__) || defined(__ATSAML22N18A__)
 #include "saml22n18a.h"
 
-#elif //Add your IC here.
+//#elif Add your IC here.
 
 #else
 #error unsupported

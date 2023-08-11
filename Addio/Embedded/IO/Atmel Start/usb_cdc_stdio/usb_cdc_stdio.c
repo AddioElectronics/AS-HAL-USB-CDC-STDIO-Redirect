@@ -5,8 +5,8 @@
 #include <hal_usb_device.h>
 
 
-#include "../../../Time/timing/timing.h"
-#include "../../../../Universal/IO/buffers/ring_buffer.h"
+#include "Addio/Embedded/Time/Timing/timing.h"
+#include "Addio/Universal/IO/buffers/ring_buffer.h"
 
 
 #pragma region Variables
